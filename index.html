@@ -127,6 +127,12 @@ body{background:#0d0d0d;min-height:100vh;display:flex;flex-direction:column;alig
 .hdr-right{display:flex;align-items:center;gap:8px;}
 
 /* ════ TOMBOL ADMIN ════ */
+/* Badge merah minta ACC */
+#adminBtn.has-notif{animation:admnotifpulse .7s infinite alternate;box-shadow:0 0 0 3px #ff3300,0 0 14px rgba(255,50,0,.6);}
+@keyframes admnotifpulse{from{box-shadow:0 0 0 2px #ff3300,0 0 8px rgba(255,50,0,.4);}to{box-shadow:0 0 0 4px #ff6600,0 0 20px rgba(255,100,0,.7);}}
+#adminBtn::after{content:attr(data-notif);display:none;position:absolute;top:-8px;right:-8px;min-width:20px;height:20px;border-radius:10px;background:#ff2200;color:#fff;font-size:11px;font-weight:bold;line-height:20px;text-align:center;padding:0 4px;pointer-events:none;}
+#adminBtn.has-notif::after{display:block;}
+#adminBtn{position:relative;}
 #admBtn{
   width:38px;height:38px;border-radius:9px;
   background:#0a0f0a;border:1px solid #1a3010;
@@ -629,7 +635,18 @@ function dbg(t){const ts=new Date().toLocaleTimeString('id',{hour:'2-digit',minu
 (function(){if(localStorage.getItem('ht_banned_'+GID)==='1'){D('regScreen').classList.add('hide');D('blockedScreen').classList.add('show');}})();
 D('regName').addEventListener('keydown',e=>{if(e.key==='Enter')doRegister(e);});
 function doRegister(e){if(e&&e.cancelable)e.preventDefault();const v=D('regName').value.trim().toUpperCase();if(!v||v.length<2){D('regErr').textContent='Nama minimal 2 karakter';return;}if(!/^[A-Z0-9 _\-]+$/.test(v)){D('regErr').textContent='Gunakan huruf/angka saja';return;}const em=(D('regEmail').value||'').trim().toLowerCase();if(!em||!em.includes('@')||!em.includes('.')){D('regErr').textContent='Email tidak valid (contoh: nama@gmail.com)';return;}NAME=v;_userEmail=em;try{localStorage.setItem(_ID_KEY,JSON.stringify({uid:ME,name:NAME,email:em}));}catch(err){}D('hdrName').textContent='👤 '+NAME;D('regScreen').classList.add('hide');startSystem();}
-function startSystem(){setSt('Minta izin mikrofon...','info');showNetBanner(true,'MEMUAT SDK JARINGAN...');navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false}).then(s=>{mic=s;mic.getAudioTracks().forEach(t=>t.enabled=false);dbg('MIC OK');setSt('Mikrofon OK · Memuat jaringan...','ok');initOrWaitPN();}).catch(e=>{dbg('MIC GAGAL: '+e.name);setSt('⚠ MIC DITOLAK · Hanya bisa mendengar','err');D('micBanner').classList.add('show');initOrWaitPN();});}
+function startSystem(){setSt('Minta izin mikrofon...','info');showNetBanner(true,'MEMUAT SDK JARINGAN...');
+// Cek apakah mediaDevices tersedia (Android WebView kadang butuh workaround)
+const getMic=()=>{
+  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+  }
+  // Fallback untuk WebView lama
+  const gUM=navigator.getUserMedia||navigator.webkitGetUserMedia||navigator.mozGetUserMedia||navigator.msGetUserMedia;
+  if(gUM){return new Promise((res,rej)=>gUM.call(navigator,{audio:true},res,rej));}
+  return Promise.reject(new Error('getUserMedia tidak tersedia'));
+};
+getMic().then(s=>{mic=s;mic.getAudioTracks().forEach(t=>t.enabled=false);dbg('MIC OK');setSt('Mikrofon OK · Memuat jaringan...','ok');D('micBanner').classList.remove('show');initOrWaitPN();}).catch(e=>{dbg('MIC GAGAL: '+e.name+' | '+e.message);setSt('⚠ MIC DITOLAK · Tap IZINKAN MIKROFON','err');D('micBanner').classList.add('show');initOrWaitPN();});}
 function ensureActx(){if(actx){if(actx.state==='suspended')actx.resume();return actx;}try{actx=new(window.AudioContext||window.webkitAudioContext)();const b=actx.createBuffer(1,actx.sampleRate,actx.sampleRate),s=actx.createBufferSource();s.buffer=b;s.loop=true;s.connect(actx.destination);s.start();return actx;}catch(e){return null;}}
 function beep(f,d,v){try{if(!actx)return;if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.frequency.value=f;g.gain.setValueAtTime(v,actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+d);o.start();o.stop(actx.currentTime+d);}catch(e){}}
 let _au=false;
@@ -817,7 +834,16 @@ function updPeers(){const n=Object.keys(peers).length,el=D('lcdPeers');if(n===0)
 function setSt(t,c){const el=D('srow');el.textContent=t;el.className=c||'';}
 function setChReady(r){document.querySelectorAll('.cbtn').forEach(b=>{if(r)b.classList.remove('notready');else b.classList.add('notready');});}
 function showNetBanner(show,txt){const b=D('netBanner');if(show){b.classList.add('show');D('netBannerTxt').textContent=txt||'MEMUAT JARINGAN...';}else b.classList.remove('show');}
-function retryMic(){dbg('Minta izin mic...');navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false}).then(s=>{mic=s;mic.getAudioTracks().forEach(t=>t.enabled=false);dbg('MIC OK setelah retry!');setSt('✅ Mikrofon aktif · Siap bicara','ok');D('micBanner').classList.remove('show');if(ch&&pn){const oldCh=ch;ch=0;Object.keys(peers).forEach(killPeer);peers={};try{pn.unsubscribeAll();}catch(e){}setTimeout(()=>doCh(oldCh),400);}}).catch(e=>{dbg('Retry gagal: '+e.name);setSt('Masih ditolak · Cek izin di Chrome','err');});}
+function retryMic(){dbg('Minta izin mic (retry)...');
+const getMic2=()=>{
+  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+    return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+  }
+  const gUM=navigator.getUserMedia||navigator.webkitGetUserMedia||navigator.mozGetUserMedia||navigator.msGetUserMedia;
+  if(gUM){return new Promise((res,rej)=>gUM.call(navigator,{audio:true},res,rej));}
+  return Promise.reject(new Error('tidak tersedia'));
+};
+getMic2().then(s=>{mic=s;mic.getAudioTracks().forEach(t=>t.enabled=false);dbg('MIC OK setelah retry!');setSt('✅ Mikrofon aktif · Siap bicara','ok');D('micBanner').classList.remove('show');if(ch&&pn){const oldCh=ch;ch=0;Object.keys(peers).forEach(killPeer);peers={};try{pn.unsubscribeAll();}catch(e){}setTimeout(()=>doCh(oldCh),400);}}).catch(e=>{dbg('Retry gagal: '+e.name+' '+e.message);setSt('Masih ditolak · Cek pengaturan HP','err');});}
 function initOrWaitPN(){if(window._pnSDKFailed){setSt('GAGAL LOAD SDK · Cek internet','err');showNetBanner(true,'GAGAL JARINGAN · REFRESH');return;}if(window._pnSDKReady)initPN();else{showNetBanner(true,'MENGHUBUNGKAN SDK...');window._pnSDKReadyCb=initPN;setTimeout(()=>{if(!pnReady){setSt('Jaringan timeout · Refresh','err');showNetBanner(true,'TIMEOUT · REFRESH');}},15000);}}
 function initPN(){
   // Re-cek admin status (admin IIFE sudah jalan setelah main script)
@@ -909,6 +935,7 @@ window.adm_open=function(){
   if(!aLoggedIn)aLoggedIn=aCheckAdminAuth();
   $('admOverlay').classList.add('show');
   $('admBtn').classList.add('adm-on');
+  aClearNotifBadge();// hapus badge merah saat panel dibuka
   if(!aLoggedIn){
     $('admLogin').classList.remove('hide');
     $('admPanel').classList.remove('show');
@@ -931,6 +958,8 @@ window.adm_login=function(){
   if(v!==A_PASS){$('admLoginErr').textContent='❌ Kode salah!';$('admPwInput').value='';$('admPwInput').focus();return;}
   aLoggedIn=true;
   aSaveAdminAuth();
+  // Minta izin notifikasi saat admin login
+  if(window.Notification&&Notification.permission==='default')Notification.requestPermission();
   $('admLoginErr').textContent='';$('admPwInput').value='';
   $('admLogin').classList.add('hide');$('admPanel').classList.add('show');
   aLoadBans();aInitPN();
@@ -974,8 +1003,12 @@ function aHandleMsg(m){
     const alreadyBanned=aBans.find(b=>b.pid===pid||(m.email&&b.email===m.email));
     if(alreadyBanned){aSendCmd({type:'rejected',target:pid,targetName:m.name,reason:'Diblokir',from:'ADMIN'});return;}
     if(!aPending[pid]){aPending[pid]={pid,name:m.name||pid,email:m.email||'',ts};
-      $('aPendBadge').textContent=Object.keys(aPending).length;$('aPendBadge').classList.add('show');
-      aToast('📥 MINTA MASUK: '+m.name);}
+      const pCnt=Object.keys(aPending).length;
+      $('aPendBadge').textContent=pCnt;$('aPendBadge').classList.add('show');
+      aToast('📥 MINTA MASUK: '+m.name);
+      // ── NOTIF ADMIN: getar + bunyi + badge + Web Notification ──
+      aNotifyNewRequest(m.name||pid,pCnt);
+    }
     else{aPending[pid].ts=ts;}
     aRenderPending();aUpdateStats();}
 }
@@ -1029,6 +1062,38 @@ window.adm_closeDlg=function(){$('admDlg').classList.remove('show');aDlgCb=null;
 window.adm_confirmDlg=function(){$('admDlg').classList.remove('show');if(aDlgCb){aDlgCb();aDlgCb=null;}};
 
 // ══ TOAST ══
+// ════════════════════════════════════════════════
+// NOTIF ADMIN — ada yang minta ACC
+// ════════════════════════════════════════════════
+function aNotifyNewRequest(name,cnt){
+  try{if(navigator.vibrate)navigator.vibrate([200,80,200,80,400,80,400]);}catch(e){}
+  try{
+    if(actx&&actx.state!=='closed'){
+      const osc=actx.createOscillator(),g=actx.createGain();
+      osc.connect(g);g.connect(actx.destination);
+      osc.frequency.value=1200;g.gain.setValueAtTime(.25,actx.currentTime);
+      osc.start();osc.stop(actx.currentTime+.12);
+      setTimeout(()=>{const o2=actx.createOscillator(),g2=actx.createGain();o2.connect(g2);g2.connect(actx.destination);o2.frequency.value=1500;g2.gain.setValueAtTime(.25,actx.currentTime);o2.start();o2.stop(actx.currentTime+.12);},150);
+      setTimeout(()=>{const o3=actx.createOscillator(),g3=actx.createGain();o3.connect(g3);g3.connect(actx.destination);o3.frequency.value=1800;g3.gain.setValueAtTime(.3,actx.currentTime);o3.start();o3.stop(actx.currentTime+.2);},320);
+    }
+  }catch(e){}
+  const ab=D('adminBtn');if(ab){ab.setAttribute('data-notif',cnt);ab.classList.add('has-notif');}
+  try{
+    if(window.Notification&&Notification.permission==='granted'){
+      const notif=new Notification('ADMIN HT JULIANTO',{
+        body:name+' minta ACC - '+cnt+' permintaan menunggu',
+        tag:'ht-admin-req',renotify:true,silent:false,vibrate:[200,80,200,80,400]
+      });
+      notif.onclick=()=>{window.focus();D('admOverlay').classList.add('show');};
+    }else if(window.Notification&&Notification.permission==='default'){
+      Notification.requestPermission().then(p=>{if(p==='granted')aNotifyNewRequest(name,cnt);});
+    }
+  }catch(e){}
+}
+function aClearNotifBadge(){
+  const ab=D('adminBtn');if(ab){ab.removeAttribute('data-notif');ab.classList.remove('has-notif');}
+}
+
 function aToast(msg,type=''){const el=$('admToast');el.textContent=msg;el.className='show'+(type?' '+type:'');if(aToastT)clearTimeout(aToastT);aToastT=setTimeout(()=>{el.className='';},3000);}
 
 // ══ UTILS ══
