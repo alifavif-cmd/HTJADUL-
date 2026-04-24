@@ -146,23 +146,17 @@ jobs:
           }
           EOF
 
-          python3 -c "
-import struct, zlib
-def make_png(w,h):
-    def chunk(t,d):
-        c=struct.pack('>I',len(d))+t+d
-        return c+struct.pack('>I',zlib.crc32(c[4:])&0xffffffff)
-    raw=b'\x00'+b'\x0a\x28\x05\xff'*(w)+b'\x00'+b'\x00\x00\x00\x00'*(w)
-    raw=b''.join(b'\x00'+bytes([10,40,5,255]*w) for _ in range(h))
-    data=zlib.compress(raw)
-    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+chunk(b'IDAT',data)+chunk(b'IEND',b'')
-import os
-for folder,size in [('mipmap-mdpi',48),('mipmap-hdpi',72),('mipmap-xhdpi',96),('mipmap-xxhdpi',144),('mipmap-xxxhdpi',192)]:
-    p=f'app/src/main/res/{folder}'
-    png=make_png(size,size)
-    open(f'{p}/ic_launcher.png','wb').write(png)
-    open(f'{p}/ic_launcher_round.png','wb').write(png)
-" 
+          for folder in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            cp /mnt/user-data/uploads/1000165282.jpg app/src/main/res/${folder}/ic_launcher.png 2>/dev/null || printf '\x89PNG\r\n\x1a\n' > app/src/main/res/${folder}/ic_launcher.png
+            touch app/src/main/res/${folder}/ic_launcher.png
+            touch app/src/main/res/${folder}/ic_launcher_round.png
+          done
+          # Create minimal valid 1x1 PNG for all icons
+          ICON=$(python3 -c "import base64; print('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')")
+          for folder in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            echo $ICON | base64 -d > app/src/main/res/${folder}/ic_launcher.png
+            echo $ICON | base64 -d > app/src/main/res/${folder}/ic_launcher_round.png
+          done
 
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version=8.2
