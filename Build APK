@@ -146,6 +146,7 @@ jobs:
           }
           EOF
 
+          sudo apt-get install -y imagemagick -q
           for entry in "mipmap-mdpi:48" "mipmap-hdpi:72" "mipmap-xhdpi:96" "mipmap-xxhdpi:144" "mipmap-xxxhdpi:192"; do
             folder="${entry%%:*}"; size="${entry##*:}"; half=$((size/2))
             convert -size ${size}x${size} xc:"#0a2805" -fill "#14640a" -draw "ellipse ${half},${half} $((half-half/5)),$((half-half/5)) 0,360" "app/src/main/res/${folder}/ic_launcher.png"
