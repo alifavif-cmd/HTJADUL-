@@ -93,57 +93,227 @@ jobs:
           <resources><string name="app_name">HT Julianto</string></resources>
           EOF
 
-          cat > app/src/main/java/com/htjulianto/app/MainActivity.java << 'EOF'
           package com.htjulianto.app;
-          import android.Manifest; import android.annotation.SuppressLint; import android.content.pm.PackageManager;
-          import android.os.Build; import android.os.Bundle; import android.webkit.*;
-          import android.view.View; import android.view.WindowManager;
-          import androidx.annotation.NonNull; import androidx.appcompat.app.AppCompatActivity;
-          import androidx.core.app.ActivityCompat; import androidx.core.content.ContextCompat;
-          public class MainActivity extends AppCompatActivity {
-              private WebView webView;
-              private static final String URL = "https://alifavif-cmd.github.io/HTJADUL-/";
-              private static final int MIC_CODE = 1001;
-              private PermissionRequest pendingReq;
-              @SuppressLint("SetJavaScriptEnabled")
-              @Override protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
-                      getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-                      ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.MODIFY_AUDIO_SETTINGS}, MIC_CODE);
-                  setContentView(R.layout.activity_main);
-                  webView = findViewById(R.id.webView);
-                  WebSettings s = webView.getSettings();
-                  s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setMediaPlaybackRequiresUserGesture(false);
-                  s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                  webView.setWebViewClient(new WebViewClient() {
-                      @Override public void onReceivedSslError(WebView v, SslErrorHandler h, android.net.http.SslError e) { h.proceed(); }
-                  });
-                  webView.setWebChromeClient(new WebChromeClient() {
-                      @Override public void onPermissionRequest(PermissionRequest request) {
-                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                              if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
-                                  request.grant(request.getResources());
-                              else { pendingReq = request; ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, MIC_CODE); }
-                          }
-                      }
-                  });
-                  webView.loadUrl(URL);
-              }
-              @Override public void onRequestPermissionsResult(int code, @NonNull String[] perms, @NonNull int[] results) {
-                  super.onRequestPermissionsResult(code, perms, results);
-                  if (code == MIC_CODE && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED)
-                      if (pendingReq != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { pendingReq.grant(pendingReq.getResources()); pendingReq = null; }
-              }
-              @Override public void onBackPressed() { if (webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
-              @Override protected void onResume() { super.onResume(); webView.onResume(); webView.resumeTimers(); }
-              @Override protected void onPause() { super.onPause(); webView.onPause(); }
-              @Override protected void onDestroy() { if (webView != null) webView.destroy(); super.onDestroy(); }
-          }
-          EOF
+
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.webkit.ConsoleMessage;
+import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.view.View;
+import android.view.WindowManager;
+import android.net.http.SslError;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+public class MainActivity extends AppCompatActivity {
+
+    private WebView webView;
+    private static final String URL = "https://alifavif-cmd.github.io/HTJADUL-/";
+    private static final int PERM_CODE = 1001;
+    private PermissionRequest pendingWebPerm;
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // ── Fullscreen ──
+        getWindow().setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
+        );
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            );
+        }
+
+        // ── Minta SEMUA izin yang dibutuhkan sekaligus ──
+        requestAllPermissions();
+
+        setContentView(R.layout.activity_main);
+        webView = findViewById(R.id.webView);
+        setupWebView();
+        webView.loadUrl(URL);
+    }
+
+    private void requestAllPermissions() {
+        String[] perms = {
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.MODIFY_AUDIO_SETTINGS,
+        };
+        boolean needRequest = false;
+        for (String p : perms) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                needRequest = true;
+                break;
+            }
+        }
+        if (needRequest) {
+            ActivityCompat.requestPermissions(this, perms, PERM_CODE);
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private void setupWebView() {
+        WebSettings s = webView.getSettings();
+
+        // ── Wajib ──
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+
+        // ── Media ──
+        s.setMediaPlaybackRequiresUserGesture(false);
+
+        // ── Layout ──
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
+
+        // ── Mixed content ──
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
+
+        // ── Cache ──
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+        // ── User Agent — supaya tidak diblokir ──
+        s.setUserAgentString(
+            "Mozilla/5.0 (Linux; Android 10; Mobile) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/120.0.0.0 Mobile Safari/537.36"
+        );
+
+        // ── WebViewClient ──
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                v.loadUrl(r.getUrl().toString());
+                return true;
+            }
+            @Override
+            public void onReceivedSslError(WebView v, SslErrorHandler h, SslError e) {
+                h.proceed(); // lanjut meski SSL error
+            }
+        });
+
+        // ── WebChromeClient — KUNCI utama mic & WebRTC ──
+        webView.setWebChromeClient(new WebChromeClient() {
+
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                // Jalankan di UI thread
+                runOnUiThread(() -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        // Cek izin Android sudah granted
+                        if (ContextCompat.checkSelfPermission(
+                                MainActivity.this, Manifest.permission.RECORD_AUDIO)
+                                == PackageManager.PERMISSION_GRANTED) {
+                            // ✅ Grant langsung semua resource yang diminta
+                            request.grant(request.getResources());
+                        } else {
+                            // Simpan request, minta izin dulu
+                            pendingWebPerm = request;
+                            requestAllPermissions();
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                // Jangan batalkan — grant ulang
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    request.grant(request.getResources());
+                }
+            }
+
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                return true; // suppress console di release
+            }
+        });
+
+        // ── JavaScript Interface — bantu unlock audio dari Java ──
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public boolean hasMicPermission() {
+                return ContextCompat.checkSelfPermission(
+                    MainActivity.this, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED;
+            }
+        }, "AndroidBridge");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code,
+            @NonNull String[] perms, @NonNull int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == PERM_CODE) {
+            boolean granted = results.length > 0 &&
+                results[0] == PackageManager.PERMISSION_GRANTED;
+            if (granted && pendingWebPerm != null &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                // ✅ Grant izin ke halaman web
+                final PermissionRequest req = pendingWebPerm;
+                pendingWebPerm = null;
+                runOnUiThread(() -> req.grant(req.getResources()));
+            }
+            // Reload halaman supaya getUserMedia dicoba ulang
+            if (webView != null) {
+                runOnUiThread(() -> webView.reload());
+            }
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) webView.goBack();
+        else super.onBackPressed();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            webView.onResume();
+            webView.resumeTimers();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        if (webView != null) webView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.stopLoading();
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
+    }
+}
+
 
           pip install Pillow -q
           python3 - << 'PYEOF'
