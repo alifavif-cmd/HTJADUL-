@@ -1,85 +1,91 @@
 name: Build APK
+
 on:
+  push:
+    branches: [ utama ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - uses: android-actions/setup-android@v3
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Gradle
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O gradle.zip
           unzip -q gradle.zip
           echo "$PWD/gradle-8.2/bin" >> $GITHUB_PATH
-      - name: Build Project
+
+      - name: Create Android Project
         run: |
           mkdir -p app/src/main/java/com/htjulianto/app
-          mkdir -p app/src/main/res/{values,mipmap-hdpi,mipmap-mdpi,mipmap-xhdpi,mipmap-xxhdpi,mipmap-xxxhdpi}
-
-          # Icon - 1x1 PNG pakai base64, tidak perlu PIL/ImageMagick
-          B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADklEQVQI12P4z8BQDwAEgAF/QualIQAAAABJRU5ErkJggg=="
-          for f in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            echo $B64 | base64 -d > app/src/main/res/$f/ic_launcher.png
-            cp app/src/main/res/$f/ic_launcher.png app/src/main/res/$f/ic_launcher_round.png
-          done
+          mkdir -p app/src/main/res/{layout,values,mipmap-hdpi,mipmap-mdpi,mipmap-xhdpi,mipmap-xxhdpi,mipmap-xxxhdpi}
 
           cat > settings.gradle << 'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           rootProject.name = "HTJulianto"
           include ':app'
           EOF
 
           cat > build.gradle << 'EOF'
-          buildscript {
-            repositories { google(); mavenCentral() }
-            dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
-          }
-          allprojects { repositories { google(); mavenCentral() } }
+          plugins { id 'com.android.application' version '8.2.0' apply false }
           EOF
 
           cat > gradle.properties << 'EOF'
           android.useAndroidX=true
+          android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
           cat > app/build.gradle << 'EOF'
           plugins { id 'com.android.application' }
           android {
-            namespace "com.htjulianto.app"
-            compileSdk 34
-            defaultConfig {
-              applicationId "com.htjulianto.app"
-              minSdk 21; targetSdk 34
-              versionCode 1; versionName "1.0"
-            }
-            buildTypes { release { minifyEnabled false } }
-            compileOptions {
-              sourceCompatibility JavaVersion.VERSION_1_8
-              targetCompatibility JavaVersion.VERSION_1_8
-            }
+              compileSdk 34
+              defaultConfig { applicationId "com.htjulianto.app"; minSdk 21; targetSdk 34; versionCode 1; versionName "1.0" }
+              buildTypes { release { minifyEnabled false } }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
           }
           dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
           EOF
 
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET"/>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.htjulianto.app">
+              <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.RECORD_AUDIO"/>
               <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
-            <application android:label="HT Julianto" android:icon="@mipmap/ic_launcher" android:usesCleartextTraffic="true">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN"/>
-                  <category android:name="android.intent.category.LAUNCHER"/>
-                </intent-filter>
-              </activity>
-            </application>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.WAKE_LOCK"/>
+              <uses-permission android:name="android.permission.VIBRATE"/>
+              <uses-feature android:name="android.hardware.microphone" android:required="true"/>
+              <application android:allowBackup="true" android:icon="@mipmap/ic_launcher" android:label="HT Julianto" android:roundIcon="@mipmap/ic_launcher" android:theme="@style/AppTheme" android:usesCleartextTraffic="true" android:hardwareAccelerated="true">
+                  <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait" android:configChanges="orientation|screenSize">
+                      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                  </activity>
+              </application>
           </manifest>
+          EOF
+
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000">
+              <WebView android:id="@+id/webView" android:layout_width="match_parent" android:layout_height="match_parent" android:scrollbars="none"/>
+          </RelativeLayout>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources><style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar"><item name="android:windowBackground">#000000</item><item name="android:windowFullscreen">true</item></style></resources>
           EOF
 
           cat > app/src/main/res/values/strings.xml << 'EOF'
@@ -87,46 +93,87 @@ jobs:
           <resources><string name="app_name">HT Julianto</string></resources>
           EOF
 
-          cat > app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources><style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar"/></resources>
-          EOF
-
           cat > app/src/main/java/com/htjulianto/app/MainActivity.java << 'EOF'
           package com.htjulianto.app;
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.webkit.PermissionRequest;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          public class MainActivity extends Activity {
-            @Override protected void onCreate(Bundle s) {
-              super.onCreate(s);
-              WebView w = new WebView(this);
-              setContentView(w);
-              WebSettings ws = w.getSettings();
-              ws.setJavaScriptEnabled(true);
-              ws.setDomStorageEnabled(true);
-              ws.setMediaPlaybackRequiresUserGesture(false);
-              w.setWebViewClient(new WebViewClient());
-              w.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(PermissionRequest request) {
-                  request.grant(request.getResources());
-                }
-              });
-              w.loadUrl("https://alifavif-cmd.github.io/HTJADUL-/");
-            }
+          import android.Manifest; import android.annotation.SuppressLint; import android.content.pm.PackageManager;
+          import android.os.Build; import android.os.Bundle; import android.webkit.*;
+          import android.view.View; import android.view.WindowManager;
+          import androidx.annotation.NonNull; import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat; import androidx.core.content.ContextCompat;
+          public class MainActivity extends AppCompatActivity {
+              private WebView webView;
+              private static final String URL = "https://alifavif-cmd.github.io/HTJADUL-/";
+              private static final int MIC_CODE = 1001;
+              private PermissionRequest pendingReq;
+              @SuppressLint("SetJavaScriptEnabled")
+              @Override protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+                      getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+                      ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO, Manifest.permission.MODIFY_AUDIO_SETTINGS}, MIC_CODE);
+                  setContentView(R.layout.activity_main);
+                  webView = findViewById(R.id.webView);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setUseWideViewPort(true); s.setLoadWithOverviewMode(true);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override public void onReceivedSslError(WebView v, SslErrorHandler h, android.net.http.SslError e) { h.proceed(); }
+                  });
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override public void onPermissionRequest(PermissionRequest request) {
+                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                              if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+                                  request.grant(request.getResources());
+                              else { pendingReq = request; ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, MIC_CODE); }
+                          }
+                      }
+                  });
+                  webView.loadUrl(URL);
+              }
+              @Override public void onRequestPermissionsResult(int code, @NonNull String[] perms, @NonNull int[] results) {
+                  super.onRequestPermissionsResult(code, perms, results);
+                  if (code == MIC_CODE && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED)
+                      if (pendingReq != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { pendingReq.grant(pendingReq.getResources()); pendingReq = null; }
+              }
+              @Override public void onBackPressed() { if (webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
+              @Override protected void onResume() { super.onResume(); webView.onResume(); webView.resumeTimers(); }
+              @Override protected void onPause() { super.onPause(); webView.onPause(); }
+              @Override protected void onDestroy() { if (webView != null) webView.destroy(); super.onDestroy(); }
           }
           EOF
 
-      - name: Gradle Wrapper
+          pip install Pillow -q
+          python3 - << 'PYEOF'
+          from PIL import Image, ImageDraw
+          sizes = {'mipmap-mdpi':48,'mipmap-hdpi':72,'mipmap-xhdpi':96,'mipmap-xxhdpi':144,'mipmap-xxxhdpi':192}
+          for folder, size in sizes.items():
+              img = Image.new('RGBA', (size, size), (0,0,0,0))
+              d = ImageDraw.Draw(img)
+              d.ellipse([0,0,size,size], fill=(10,40,5,255))
+              m = size//6; d.ellipse([m,m,size-m,size-m], fill=(20,100,10,255))
+              cx = size//2; w = max(2, size//20)
+              d.line([(cx,size//4),(cx,size*3//4)], fill=(174,208,0,255), width=w)
+              d.line([(cx-size//5,size//3),(cx,size//4)], fill=(174,208,0,255), width=max(2,size//24))
+              d.line([(cx+size//5,size//3),(cx,size//4)], fill=(174,208,0,255), width=max(2,size//24))
+              path = f'app/src/main/res/{folder}'
+              img.save(f'{path}/ic_launcher.png'); img.save(f'{path}/ic_launcher_round.png')
+          PYEOF
+
+      - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version=8.2
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build APK
-        run: chmod +x gradlew && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: HT-Julianto-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
