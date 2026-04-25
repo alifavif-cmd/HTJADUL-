@@ -129,7 +129,16 @@ jobs:
           EOF
 
       - name: Gradle Wrapper
-        run: gradle wrapper --gradle-version=8.2
+        run: |
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF2'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF2
+          gradle wrapper
       - name: Build APK
         run: chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
