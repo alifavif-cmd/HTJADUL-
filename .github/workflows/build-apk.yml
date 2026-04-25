@@ -16,45 +16,52 @@ jobs:
           wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O gradle.zip
           unzip -q gradle.zip
           echo "$PWD/gradle-8.2/bin" >> $GITHUB_PATH
+
       - name: Build Project
         run: |
           mkdir -p app/src/main/java/com/htjulianto/app
-          mkdir -p app/src/main/res/{values,mipmap-hdpi,mipmap-mdpi,mipmap-xhdpi,mipmap-xxhdpi,mipmap-xxxhdpi}
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
 
-          # Icon - 1x1 PNG pakai base64, tidak perlu PIL/ImageMagick
           B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADklEQVQI12P4z8BQDwAEgAF/QualIQAAAABJRU5ErkJggg=="
           for f in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
             echo $B64 | base64 -d > app/src/main/res/$f/ic_launcher.png
             cp app/src/main/res/$f/ic_launcher.png app/src/main/res/$f/ic_launcher_round.png
           done
 
-          cat > settings.gradle << 'EOF'
+          cat > settings.gradle << 'SEOF'
           rootProject.name = "HTJulianto"
           include ':app'
-          EOF
+          SEOF
 
-          cat > build.gradle << 'EOF'
+          cat > build.gradle << 'BEOF'
           buildscript {
             repositories { google(); mavenCentral() }
             dependencies { classpath 'com.android.tools.build:gradle:8.1.0' }
           }
           allprojects { repositories { google(); mavenCentral() } }
-          EOF
+          BEOF
 
-          cat > gradle.properties << 'EOF'
+          cat > gradle.properties << 'GEOF'
           android.useAndroidX=true
           org.gradle.jvmargs=-Xmx2048m
-          EOF
+          GEOF
 
-          cat > app/build.gradle << 'EOF'
+          cat > app/build.gradle << 'ABEOF'
           plugins { id 'com.android.application' }
           android {
             namespace "com.htjulianto.app"
             compileSdk 34
             defaultConfig {
               applicationId "com.htjulianto.app"
-              minSdk 21; targetSdk 34
-              versionCode 1; versionName "1.0"
+              minSdk 21
+              targetSdk 34
+              versionCode 1
+              versionName "1.0"
             }
             buildTypes { release { minifyEnabled false } }
             compileOptions {
@@ -63,43 +70,39 @@ jobs:
             }
           }
           dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
-          EOF
+          ABEOF
 
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
+          python3 << 'PYEOF'
+          manifest = '''<?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name=\"android.permission.INTERNET\"/>
-              <uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>
-              <uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\"/>
-            <application android:label="HT Julianto" android:icon="@mipmap/ic_launcher" android:usesCleartextTraffic="true">
-              <activity android:name=".MainActivity" android:exported="true">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+            <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+            <application
+              android:label="HT Julianto"
+              android:icon="@mipmap/ic_launcher"
+              android:usesCleartextTraffic="true">
+              <activity
+                android:name=".MainActivity"
+                android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN"/>
                   <category android:name="android.intent.category.LAUNCHER"/>
                 </intent-filter>
               </activity>
             </application>
-          </manifest>
-          EOF
+          </manifest>'''
+          open('app/src/main/AndroidManifest.xml','w').write(manifest)
+          PYEOF
 
-          cat > app/src/main/res/values/strings.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources><string name="app_name">HT Julianto</string></resources>
-          EOF
-
-          cat > app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources><style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar"/></resources>
-          EOF
-
-          cat > app/src/main/java/com/htjulianto/app/MainActivity.java << 'EOF'
-          package com.htjulianto.app;
+          python3 << 'PYEOF'
+          java = '''package com.htjulianto.app;
           import android.app.Activity;
           import android.os.Bundle;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
           import android.webkit.PermissionRequest;
           import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
           import android.webkit.WebViewClient;
           public class MainActivity extends Activity {
             private WebView w;
@@ -125,13 +128,39 @@ jobs:
               if (w.canGoBack()) w.goBack();
               else super.onBackPressed();
             }
-          }
-          EOF
+          }'''
+          open('app/src/main/java/com/htjulianto/app/MainActivity.java','w').write(java)
+          PYEOF
+
+          python3 << 'PYEOF'
+          strings = '''<?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <string name="app_name">HT Julianto</string>
+          </resources>'''
+          open('app/src/main/res/values/strings.xml','w').write(strings)
+          styles = '''<?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar"/>
+          </resources>'''
+          open('app/src/main/res/values/styles.xml','w').write(styles)
+          PYEOF
 
       - name: Gradle Wrapper
-        run: gradle wrapper --gradle-version=8.2
+        run: |
+          mkdir -p gradle/wrapper
+          python3 << 'PYEOF'
+          props = """distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\\://services.gradle.org/distributions/gradle-8.2-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists"""
+          open('gradle/wrapper/gradle-wrapper.properties','w').write(props)
+          PYEOF
+          gradle wrapper
+
       - name: Build APK
         run: chmod +x gradlew && ./gradlew assembleDebug
+
       - uses: actions/upload-artifact@v4
         with:
           name: HT-Julianto-APK
